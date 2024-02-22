@@ -20,7 +20,7 @@ const purchaseSchema = z.object({
       unitPrice: z.number().positive("quantity must be a positive float"),
     })
   ),
-  paid: z.number().positive("paid must be a positive number").optional(),
+  paid: z.number().optional(),
   total: z.number().positive("total must be a positive number"),
   discount: z.number().min(0, "discount cannot be negative"),
   accountId: z.number().min(1, "Account must have number"),
