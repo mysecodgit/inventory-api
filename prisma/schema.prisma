@@ -1,0 +1,135 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id              Int              @id @default(autoincrement())
+  name            String
+  description     String?
+  costPrice       Float
+  sellingPrice    Float
+  stock           Int
+  salesDetails    SalesDetail[]
+  purchaseDetails PurchaseDetail[]
+}
+
+model Vendor {
+  id        Int        @id @default(autoincrement())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  purchases Purchase[]
+}
+
+model Purchase {
+  id               Int               @id @default(autoincrement())
+  purchaseNo       String            @unique
+  vendor           Vendor            @relation(fields: [vendorId], references: [id])
+  vendorId         Int
+  purchaseDate     DateTime
+  purchaseDetails  PurchaseDetail[]
+  purchasePayments PurchasePayment[]
+  total            Float
+  discount         Float?
+  status           String?
+}
+
+model PurchaseDetail {
+  id         Int      @id @default(autoincrement())
+  purchase   Purchase @relation(fields: [purchaseNo], references: [purchaseNo])
+  purchaseNo String
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  Int
+  quantity   Int
+  unitPrice  Float
+}
+
+model PurchasePayment {
+  id          Int      @id @default(autoincrement())
+  purchase    Purchase @relation(fields: [purchaseNo], references: [purchaseNo])
+  purchaseNo  String
+  account     Account  @relation(fields: [accountId], references: [id])
+  accountId   Int
+  amount      Float
+  paymentDate DateTime
+}
+
+model Customer {
+  id      Int     @id @default(autoincrement())
+  name    String
+  email   String?
+  phone   String?
+  address String?
+  sales   Sale[]
+}
+
+model Sale {
+  id            Int            @id @default(autoincrement())
+  salesNo       String         @unique
+  customer      Customer       @relation(fields: [customerId], references: [id])
+  customerId    Int
+  saleDate      DateTime
+  salesDetails  SalesDetail[]
+  salesPayments SalesPayment[]
+}
+
+model SalesDetail {
+  id        Int     @id @default(autoincrement())
+  sale      Sale    @relation(fields: [salesNo], references: [salesNo])
+  salesNo   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId Int
+  quantity  Int
+  unitPrice Float
+}
+
+model SalesPayment {
+  id          Int      @id @default(autoincrement())
+  sale        Sale     @relation(fields: [salesNo], references: [salesNo])
+  salesNo     String
+  account     Account  @relation(fields: [accountId], references: [id])
+  accountId   Int
+  amount      Float
+  paymentDate DateTime
+}
+
+model Account {
+  id               Int               @id @default(autoincrement())
+  name             String
+  accountType      String
+  balance          Float
+  transactions     Transaction[]
+  purchasePayments PurchasePayment[]
+  salesPayments    SalesPayment[]
+  expenses         Expense[]
+}
+
+model Expense {
+  id          Int      @id @default(autoincrement())
+  name        String
+  amount      Float
+  account     Account  @relation(fields: [accountId], references: [id])
+  accountId   Int
+  expenseDate DateTime
+}
+
+model Transaction {
+  id              Int      @id @default(autoincrement())
+  account         Account  @relation(fields: [accountId], references: [id])
+  accountId       Int
+  transactionDate DateTime
+  amount          Float
+  description     String?
+}
