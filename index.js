@@ -13,3 +13,4 @@ require("./routes/customer")(app);
 require("./routes/product")(app);
 require("./routes/purchase")(app);
 require("./routes/account")(app);
+require("./routes/sales")(app);

@@ -130,61 +130,149 @@ exports.createPurchase = async (req, res) => {
 // Update a Purchase
 exports.updatePurchase = async (req, res) => {
   try {
-    const { id } = req.params;
+    const purchaseId = parseInt(req.params.id);
     const {
       purchaseNo,
       vendorId,
       purchaseDate,
       purchaseDetails,
-      purchasePayments,
       total,
       discount,
       status,
-    } = req.body;
-    const purchase = await prisma.purchase.update({
-      where: { id: parseInt(id) },
-      data: {
-        purchaseNo,
-        vendor: { connect: { id: vendorId } },
-        purchaseDate,
-        purchaseDetails: { create: purchaseDetails },
-        purchasePayments: { create: purchasePayments },
-        total,
-        discount,
-        status,
-      },
-      include: { vendor: true, purchaseDetails: true, purchasePayments: true },
+      accountId,
+    } = purchaseSchema.parse(req.body);
+
+    // Check if the purchase exists
+    const purchase = await prisma.purchase.findUnique({
+      where: { id: purchaseId },
+      include: { purchaseDetails: true },
     });
-    res.json({ success: true, purchase });
+
+    if (!purchase) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Purchase not found" });
+    }
+
+    // Check if the vendor exists
+    const vendor = await prisma.vendor.findUnique({
+      where: { id: vendorId },
+    });
+
+    if (!vendor) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Vendor not found" });
+    }
+
+    const account = await prisma.account.findUnique({
+      where: { id: accountId },
+    });
+
+    if (!account) {
+      return res
+        .status(404)
+        .json({ success: false, error: "Account was not found" });
+    }
+
+    // Update the Purchase
+    await prisma.$transaction(async (prisma) => {
+      const updatedPurchase = await prisma.purchase.update({
+        where: { id: purchaseId },
+        data: {
+          purchaseNo,
+          vendor: { connect: { id: vendorId } },
+          purchaseDate: new Date(purchaseDate),
+          purchaseDetails: {
+            deleteMany: { purchaseNo },
+            create: purchaseDetails.map((detail) => ({
+              unitPrice: detail.unitPrice,
+              quantity: detail.quantity,
+              product: { connect: { id: detail.productId } },
+            })),
+          },
+          total,
+          discount,
+          status,
+        },
+        include: { vendor: true, purchaseDetails: true },
+      });
+
+      // lookup for logic to update the stock
+      for (const detail of purchase.purchaseDetails) {
+        const { productId, quantity } = detail;
+        await prisma.product.update({
+          where: { id: productId },
+          data: { stock: { decrement: quantity } },
+        });
+      }
+
+      for (const detail of purchaseDetails) {
+        const { productId, quantity } = detail;
+        await prisma.product.update({
+          where: { id: productId },
+          data: { stock: { increment: quantity } },
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        purchase: updatedPurchase,
+      });
+    });
   } catch (error) {
     console.error(error);
-    res.status(400).json({ success: false, error: "Invalid data provided" });
+    res
+      .status(400)
+      .json({ success: false, err: error, error: "Invalid data provided" });
   }
 };
 
 // Delete a Purchase
 exports.deletePurchase = async (req, res) => {
   try {
-    const { id } = req.params;
-
     const purchase = await prisma.purchase.findUnique({
-      where: { id: parseInt(id) },
+      where: { id: parseInt(req.params.id) },
+      include: { purchaseDetails: true },
     });
 
-    if (!purchase)
+    if (!purchase) {
       return res
         .status(404)
-        .json({ success: false, message: "Purchase not found" });
+        .json({ success: false, error: "Purchase not found" });
+    }
 
-    await prisma.purchase.delete({
-      where: { id: parseInt(id) },
+    await prisma.$transaction(async (prisma) => {
+      for (const detail of purchase.purchaseDetails) {
+        const { productId, quantity } = detail;
+        await prisma.product.update({
+          where: { id: productId },
+          data: { stock: { decrement: quantity } },
+        });
+      }
+
+      await prisma.purchaseDetail.deleteMany({
+        where: { purchaseNo: purchase.purchaseNo },
+      });
+
+      await prisma.purchasePayment.deleteMany({
+        where: { purchaseNo: purchase.purchaseNo },
+      });
+
+      await prisma.purchase.delete({
+        where: { purchaseNo: purchase.purchaseNo },
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "purchase was successfully deleted.",
+      });
     });
-    res
-      .status(200)
-      .json({ success: true, message: "Purchase was successfully deleted" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, error: "Something went wrong" });
+    res
+      .status(400)
+      .json({ success: false, error: "Failed to delete purchase" });
   }
 };
 
