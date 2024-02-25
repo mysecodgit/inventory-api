@@ -14,3 +14,6 @@ require("./routes/product")(app);
 require("./routes/purchase")(app);
 require("./routes/account")(app);
 require("./routes/sales")(app);
+require("./routes/purchase_payment")(app);
+require("./routes/sales_payment")(app);
+require("./routes/expense")(app);
